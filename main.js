@@ -1,174 +1,95 @@
-// Global Variables
-let physicsWorld;
-let scene, camera, renderer;
-let clock;
-let bodies = new Set();
-let tempTranformation;
+var canvas = document.getElementById("renderCanvas");
+var engine = new BABYLON.Engine(canvas, true);
 
-// Setup and Begin Simulation
-Ammo().then(start);
+var showAxis = function(size) {
+    var makeTextPlane = function(text, color, size) {
+        var dynamicTexture = new BABYLON.DynamicTexture("DynamicTexture", 50, scene, true);
+        dynamicTexture.hasAlpha = true;
+        dynamicTexture.drawText(text, 5, 40, "bold 36px Arial", color , "transparent", true);
+        var plane = new BABYLON.Mesh.CreatePlane("TextPlane", size, scene, true);
+        plane.material = new BABYLON.StandardMaterial("TextPlaneMaterial", scene);
+        plane.material.backFaceCulling = false;
+        plane.material.specularColor = new BABYLON.Color3(0, 0, 0);
+        plane.material.diffuseTexture = dynamicTexture;
+        return plane;
+    };
+  
+    var axisX = BABYLON.Mesh.CreateLines("axisX", [ 
+      new BABYLON.Vector3.Zero(), new BABYLON.Vector3(size, 0, 0), new BABYLON.Vector3(size * 0.95, 0.05 * size, 0), 
+      new BABYLON.Vector3(size, 0, 0), new BABYLON.Vector3(size * 0.95, -0.05 * size, 0)
+      ], scene);
+    axisX.color = new BABYLON.Color3(1, 0, 0);
+    var xChar = makeTextPlane("X", "red", size / 10);
+    xChar.position = new BABYLON.Vector3(0.9 * size, -0.05 * size, 0);
+    var axisY = BABYLON.Mesh.CreateLines("axisY", [
+        new BABYLON.Vector3.Zero(), new BABYLON.Vector3(0, size, 0), new BABYLON.Vector3( -0.05 * size, size * 0.95, 0), 
+        new BABYLON.Vector3(0, size, 0), new BABYLON.Vector3( 0.05 * size, size * 0.95, 0)
+        ], scene);
+    axisY.color = new BABYLON.Color3(0, 1, 0);
+    var yChar = makeTextPlane("Y", "green", size / 10);
+    yChar.position = new BABYLON.Vector3(0, 0.9 * size, -0.05 * size);
+    var axisZ = BABYLON.Mesh.CreateLines("axisZ", [
+        new BABYLON.Vector3.Zero(), new BABYLON.Vector3(0, 0, size), new BABYLON.Vector3( 0 , -0.05 * size, size * 0.95),
+        new BABYLON.Vector3(0, 0, size), new BABYLON.Vector3( 0, 0.05 * size, size * 0.95)
+        ], scene);
+    axisZ.color = new BABYLON.Color3(0, 0, 1);
+    var zChar = makeTextPlane("Z", "blue", size / 10);
+    zChar.position = new BABYLON.Vector3(0, 0.05 * size, 0.9 * size);
+};
 
-function start(){
-    tempTranformation = new Ammo.btTransform();
+var createScene = function () {
+    // Create the scene space
+    var scene = new BABYLON.Scene(engine);
+    scene.enablePhysics(new BABYLON.Vector3(0, -9.80665, 0), new BABYLON.AmmoJSPlugin());
 
-    setupPhysicsWorld();
-    setupGraphics();
+    // Add a camera to the scene and attach it to the canvas
+    var camera = new BABYLON.ArcRotateCamera("Camera", Math.PI / 2, Math.PI / 2, 6, new BABYLON.Vector3(0,0,0), scene);
+    camera.attachControl(canvas, true);
 
-    createBox({x: 0, y: 0, z: 0}, {x: 7, y: 1, z: 7}, 0x777777);
-    createBox({x: 0, y: 1.5/2, z: 2}, {x: 5, y: 1.5, z: 1}, 0x415056);
-    createBall({x: 0, y: 0, z: -2.5}, 1, 0.042, 0xffffff);
+    // Add lights to the scene
+    var light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-    render();
-}
+    // Add and manipulate meshes in the scene
+    var ground = BABYLON.MeshBuilder.CreateBox("ground", {width: 5, height: 0.5, depth: 5}, scene);
+    var greyMaterial = new BABYLON.StandardMaterial("greyMaterial", scene);
+    greyMaterial.diffuseColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+    ground.material = greyMaterial;
+    ground.position = new BABYLON.Vector3(0, -0.5/2, 0);
+    ground.physicsImpostor = new BABYLON.PhysicsImpostor(ground, BABYLON.PhysicsImpostor.BoxImpostor, {mass: 0, restitution: 0.8}, scene);
 
-// Setup Functions
-function setupPhysicsWorld() {
-    let collisionConfiguration  = new Ammo.btDefaultCollisionConfiguration(),
-        dispatcher              = new Ammo.btCollisionDispatcher(collisionConfiguration),
-        overlappingPairCache    = new Ammo.btDbvtBroadphase(),
-        solver                  = new Ammo.btSequentialImpulseConstraintSolver();
+    var ball = BABYLON.MeshBuilder.CreateSphere("ball", {diameter: 0.042}, scene);
+    ball.position = new BABYLON.Vector3(0, 0.042/2, 0);
+    ball.physicsImpostor = new BABYLON.PhysicsImpostor(ball, BABYLON.PhysicsImpostor.SphereImpostor, {mass: 0.383, restitution: 0.8}, scene);
+    var velocity = new BABYLON.Vector3(-1, 1, 0);
+    velocity = new BABYLON.Vector3(-2, 1.4, 0);
+    velocity = velocity.normalize();
+    velocity = velocity.scale(10);
+    ball.physicsImpostor.setLinearVelocity(velocity);
 
-    physicsWorld = new Ammo.btDiscreteDynamicsWorld(dispatcher, overlappingPairCache, solver, collisionConfiguration);
-    physicsWorld.setGravity(new Ammo.btVector3(0, -9.80665, 0));
-}
+    var sentry = BABYLON.MeshBuilder.CreateBox("sentry", {width: 0.235, height: 0.127, depth: 0.1}, scene);
+    var blueMaterial = new BABYLON.StandardMaterial("blueMaterial", scene);
+    blueMaterial.diffuseColor = new BABYLON.Color3(0, 0, 1);
+    sentry.material = blueMaterial;
+    sentry.position = new BABYLON.Vector3(-2.5, 1.29, 0);
+    sentry.rotation = new BABYLON.Vector3(15 * (Math.PI / 180), 90 * (Math.PI / 180), 0);
+    sentry.physicsImpostor = new BABYLON.PhysicsImpostor(sentry, BABYLON.PhysicsImpostor.BoxImpostor, {mass: 0, restitution: 0.8}, scene);
+    sentry.physicsImpostor.registerOnPhysicsCollide(ball.physicsImpostor, function(main, collided) {
+        console.log("collided");
+    });
 
-function setupGraphics() {
-    // Create Clock for Physics Updates
-    clock = new THREE.Clock();
+    // TODO: fix ball passing through sentry
 
-    // Create Scene
-    scene = new THREE.Scene();
+    showAxis(1); // for debuging
 
-    // Create Camera
-    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(-4, 1.3, 0); // leftside view
-    camera.lookAt(new THREE.Vector3(0, 1.3, 0));
+    return scene;
+};
 
-    // camera.position.set(0, 7, 0); // top down view
-    // camera.lookAt(new THREE.Vector3(0, 0, 0));
+var scene = createScene();
 
-    camera.position.set(0, 1.3, 2.5); // sentry view
-    camera.lookAt(new THREE.Vector3(0, 1.3, 0));
+engine.runRenderLoop(function () {
+    scene.render();
+});
 
-    // Add Lighting
-    let lightPositions = [
-        {x: 0, y: 20, z: 0},
-        {x: 2.5, y: 20, z: 2.5},
-        {x: 2.5, y: 20, z: -2.5},
-        {x: -2.5, y: 20, z: 2.5},
-        {x: -2.5, y: 20, z: -2.5},
-    ];
-
-    for (lightPosition of lightPositions) {
-        let light = new THREE.PointLight(0xffffff, 0.5, 30, 2);
-        light.position.set(lightPosition.x, lightPosition.y, lightPosition.z);
-        scene.add(light);
-    }
-
-    // Setup Renderer
-    renderer = new THREE.WebGLRenderer();
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(renderer.domElement);
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.shadowMap.enabled = true;
-}
-
-function createBox(pos, scale, color) {
-    let quat = {x: 0, y: 0, z: 0, w: 1};
-    let mass = 0;
-
-    // Set Object Graphics
-    let geometry = new THREE.BoxBufferGeometry();
-    let material = new THREE.MeshPhongMaterial({color: color});
-    let box = new THREE.Mesh(geometry, material);
-
-    box.position.set(pos.x, pos.y, pos.z);
-    box.scale.set(scale.x, scale.y, scale.z);
-
-    box.castShadow = true;
-    box.receiveShadow = true;
-
-    scene.add(box);
-
-    // Set Object Physics
-    let transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-    transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-    let motionState = new Ammo.btDefaultMotionState(transform);
-
-    let colShape = new Ammo.btBoxShape(new Ammo.btVector3(scale.x * 0.5, scale.y * 0.5, scale.z * 0.5));
-    colShape.setMargin(0.05);
-
-    let localInertia = new Ammo.btVector3(0, 0, 0);
-    colShape.calculateLocalInertia(mass, localInertia);
-
-    let rbcInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
-    let body = new Ammo.btRigidBody(rbcInfo);
-
-    physicsWorld.addRigidBody(body);
-}
-
-function createBall(pos, mass, radius, color) {
-    let quat = {x: 0, y: 0, z: 0, w: 1};
-
-    // Set Object Graphics
-    let geometry = new THREE.SphereBufferGeometry(radius);
-    let material = new THREE.MeshPhongMaterial({color: color});
-    let ball = new THREE.Mesh(geometry, material);
-
-    ball.position.set(pos.x, pos.y, pos.z);
-    
-    ball.castShadow = true;
-    ball.receiveShadow = true;
-
-    scene.add(ball);
-
-    // Set Object Physics
-    let transform = new Ammo.btTransform();
-    transform.setIdentity();
-    transform.setOrigin(new Ammo.btVector3(pos.x, pos.y, pos.z));
-    transform.setRotation(new Ammo.btQuaternion(quat.x, quat.y, quat.z, quat.w));
-    let motionState = new Ammo.btDefaultMotionState(transform);
-
-    let colShape = new Ammo.btSphereShape(radius);
-    colShape.setMargin(0.05);
-
-    let localInertia = new Ammo.btVector3(0, 0, 0);
-    colShape.calculateLocalInertia(mass, localInertia);
-
-    let rbInfo = new Ammo.btRigidBodyConstructionInfo(mass, motionState, colShape, localInertia);
-    let body = new Ammo.btRigidBody(rbInfo);
-
-    physicsWorld.addRigidBody(body);
-
-    body.setLinearVelocity(new Ammo.btVector3(0, 4, 8));
-    
-    ball.userData.physicsBody = body;
-    bodies.add(ball);
-}
-
-function render(){
-    let delta = clock.getDelta();
-    updateWorld(delta);
-
-    renderer.render(scene, camera);
-    requestAnimationFrame(render);
-}
-
-function updateWorld(delta){
-    physicsWorld.stepSimulation(delta, 10);
-
-    for (body of bodies) {
-        let motionState = body.userData.physicsBody.getMotionState();
-
-        if (motionState) {
-            motionState.getWorldTransform(tempTranformation);
-            let p = tempTranformation.getOrigin();
-            let q = tempTranformation.getRotation();
-            body.position.set(p.x(), p.y(), p.z());
-            body.quaternion.set(q.x(), q.y(), q.z(), q.w());
-        }
-    }
-}
+window.addEventListener("resize", function () {
+    engine.resize();
+});
